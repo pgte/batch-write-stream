@@ -1,0 +1,26 @@
+{
+  "name": "batch-write-stream",
+  "version": "0.0.1",
+  "description": "Batch Object Write Stream",
+  "main": "index.js",
+  "scripts": {
+    "test": "tap tests/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/pgte/batch-write-stream.git"
+  },
+  "keywords": [
+    "stream",
+    "write",
+    "batch"
+  ],
+  "author": "pgte",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pgte/batch-write-stream/issues"
+  },
+  "devDependencies": {
+    "tap": "*"
+  }
+}
