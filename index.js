@@ -125,7 +125,7 @@ function flush(stream, state) {
     state.buffer = [];
     state.callbacks = [];
     doWrite(stream, state, buffer, callbacks);
-  }
+  } else state.nextTick = false;
 }
 
 function doWrite(stream, state, batch, callbacks) {
