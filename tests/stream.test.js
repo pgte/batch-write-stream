@@ -1,3 +1,4 @@
+var setImmediate = global.setImmediate || process.nextTick;
 var test = require('tap').test;
 
 var BatchWriteStream = require('../');
