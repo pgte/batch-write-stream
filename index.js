@@ -88,6 +88,26 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
   return ret;
 };
 
+
+BatchObjectWriteStream.prototype.destroy = function destroy() {
+  var state = this._writableState;
+
+  var stream = this;
+  state.writing = 0;
+  this.writable = false;
+
+  process.nextTick(function() {
+    state.finished = true;
+    stream.emit('finish');
+  });
+
+  this.end();
+};
+
+BatchObjectWriteStream.prototype.destroySoon = function destroySoon() {
+  this.end();
+};
+
 // if we're already writing something, then just put this
 // in the queue, and wait our turn.  Otherwise, call _write
 // If we return false, then we need a drain event, so set that flag.
