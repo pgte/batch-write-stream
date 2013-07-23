@@ -1,3 +1,5 @@
+var setImmediate = global.setImmediate || process.nextTick;
+
 exports = module.exports = BatchObjectWriteStream;
 BatchObjectWriteStream.WritableState = WritableState;
 
@@ -67,7 +69,7 @@ function writeAfterEnd(stream, state, cb) {
   var er = new Error('write after end');
   // TODO: defer error events consistently everywhere, not just the cb
   stream.emit('error', er);
-  setImmediate(cb, er);
+  setImmediate(function() { cb(er); });
 }
 
 BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
