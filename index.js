@@ -126,14 +126,13 @@ function scheduleFlushMaybe(stream, state) {
 function flush(stream, state) {
   state.scheduled = false;
   var buffer = state.buffer;
-  if ((state.writing < state.maxConcurrentBatches) && buffer.length) {
+  if ((state.writing < state.maxConcurrentBatches) && buffer.length && stream.writable) {
     var callbacks = state.callbacks;
     state.buffer = [];
     state.callbacks = [];
 
     state.writing ++;
-    if (state.writing > 1) console.log('writing = ', state.writing);
-    if (stream.writable) stream._writeBatch(buffer, onWrite);
+    stream._writeBatch(buffer, onWrite);
 
     function onWrite(err) {
       state.writing --;
