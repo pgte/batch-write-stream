@@ -85,6 +85,8 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
   var state = this._writableState;
   var ret = false;
 
+  if (! this.writable) return;
+
   if (arguments.length < 3) {
     cb = encoding;
     encoding = undefined;
@@ -131,7 +133,7 @@ function flush(stream, state) {
 
     state.writing ++;
     if (state.writing > 1) console.log('writing = ', state.writing);
-    stream._writeBatch(buffer, onWrite);
+    if (stream.writable) stream._writeBatch(buffer, onWrite);
 
     function onWrite(err) {
       state.writing --;
