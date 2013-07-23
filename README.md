@@ -44,6 +44,16 @@ stream._writeBatch = function(batch, cb) {
 }
 ```
 
+### Map
+
+You can map each value before it is written:
+
+```javascript
+stream._map = function(d) {
+  return transform(d);
+};
+```
+
 ## License
 
 MIT
