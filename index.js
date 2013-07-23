@@ -16,7 +16,7 @@ function WritableState(options, stream) {
   // Note: 0 is a valid value, means that we always return false if
   // the entire buffer is not flushed immediately on write()
   var hwm = options.highWaterMark;
-  this.highWaterMark = (hwm || hwm === 0) ? hwm : 100;
+  this.highWaterMark = (hwm || hwm === 0) ? hwm : 100000;
 
   this.maxConcurrentBatches = options.maxConcurrentBatches || 1;
 
@@ -50,11 +50,16 @@ function BatchObjectWriteStream(options) {
   if (!(this instanceof BatchObjectWriteStream) && !(this instanceof Stream.Duplex))
     return new BatchObjectWriteStream(options);
 
-  this._writableState = new WritableState(options, this);
+  var state = this._writableState = new WritableState(options, this);
 
   // legacy.
   this.writable = true;
   this.readable = false;
+
+  var stream = this;
+  this._flushFn = function() {
+    flush(stream, state);
+  };
 
   Stream.call(this);
 }
@@ -69,6 +74,7 @@ function writeAfterEnd(stream, state, cb) {
   var er = new Error('write after end');
   // TODO: defer error events consistently everywhere, not just the cb
   stream.emit('error', er);
+  //setImmediate(function() { cb(er); });
   setImmediate(function() { cb(er); });
 }
 
@@ -81,67 +87,54 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
     encoding = undefined;
   }
 
-  if (typeof cb !== 'function')
-    cb = noop;
-
   if (state.ended)
     writeAfterEnd(this, state, cb);
-  else ret = buffer(this, state, chunk, encoding, cb);
+  else {
+    state.length += 1;
+
+    ret = state.length < state.highWaterMark;
+    state.needDrain = !ret;
+
+    if (encoding && ! chunk.encoding) chunk.encoding = encoding;
+
+    chunk = this._map(chunk);
+
+    state.buffer.push(chunk);
+    if (cb) {
+      state.callbacks.push(cb);
+    }
+
+    if (! state.scheduled) {
+      state.scheduled = true;
+      setImmediate(this._flushFn);
+    }
+  }
 
   return ret;
 };
 
 
-// if we're already writing something, then just put this
-// in the queue, and wait our turn.  Otherwise, call _write
-// If we return false, then we need a drain event, so set that flag.
-function buffer(stream, state, chunk, encoding, cb) {
-  state.length += 1;
-
-  var ret = state.length < state.highWaterMark;
-  state.needDrain = !ret;
-
-  if (encoding && ! chunk.encoding) chunk.encoding = encoding;
-
-  chunk = stream._map(chunk);
-
-  state.buffer.push(chunk);
-  if (cb) {
-    state.callbacks.push(cb);
-  }
-
-  maybeFlush(stream, state);
-  return ret;
-}
-
-function maybeFlush(stream, state) {
-  if (! state.scheduled) {
-    var fn = state.scheduled = function() {
-      flush(stream, state);
-    };
-    setImmediate(fn);
-  }
-}
-
 function flush(stream, state) {
+  //console.log('flush');
   state.scheduled = false;
   var buffer = state.buffer;
   var callbacks = state.callbacks;
   if ((state.writing < state.maxConcurrentBatches) && buffer.length) {
     state.buffer = [];
     state.callbacks = [];
-    doWrite(stream, state, buffer, callbacks);
-  }
-}
 
-function doWrite(stream, state, batch, callbacks) {
-  if (stream.writable) {
-    state.writing ++;
-    stream._writeBatch(batch, onWrite);
+    if (stream.writable) {
+      state.writing ++;
+      //if (state.writing > 1) console.log('state.writing:', state.writing);
+      //console.log('w', buffer.length);
+      stream._writeBatch(buffer, onWrite);
+    }
   }
 
   function onWrite(err) {
-    onwriteStateUpdate(state, batch.length);
+    //console.log('wrote');
+    state.writing --;
+    state.length -= buffer.length;
     onwrite(stream, err, callbacks);
   }
 }
@@ -154,11 +147,6 @@ function onwriteError(stream, state, er, cbs) {
   }
 
   stream.emit('error', er);
-}
-
-function onwriteStateUpdate(state, length) {
-  state.writing --;
-  state.length -= length;
 }
 
 function onwrite(stream, er, cbs) {
@@ -178,23 +166,15 @@ function onwrite(stream, er, cbs) {
 }
 
 function afterWrite(stream, state, finished, cbs) {
-  if (!finished)
-    onwriteDrain(stream, state);
+  if (!finished && state.length == 0 && state.needDrain) {
+    state.needDrain = false;
+    stream.emit('drain');
+  }
   for (var i = 0 ; i < cbs.length; i ++) {
     cbs[i]();
   }
   if (finished)
     finishMaybe(stream, state);
-}
-
-// Must force callback to be setImmediate, so that we don't
-// emit 'drain' before the write() consumer gets the 'false' return
-// value, and has a chance to attach a 'drain' listener.
-function onwriteDrain(stream, state) {
-  if (state.length === 0 && state.needDrain) {
-    state.needDrain = false;
-    stream.emit('drain');
-  }
 }
 
 BatchObjectWriteStream.prototype._writeBatch = function(batch, cb) {
@@ -263,8 +243,3 @@ function endWritable(stream, state, cb) {
   }
   state.ended = true;
 }
-
-
-/// no-op
-
-function noop() {}
