@@ -82,7 +82,7 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
   }
 
   if (typeof cb !== 'function')
-    cb = function() {};
+    cb = noop;
 
   if (state.ended)
     writeAfterEnd(this, state, cb);
@@ -91,25 +91,6 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
   return ret;
 };
 
-
-BatchObjectWriteStream.prototype.destroy = function destroy() {
-  var state = this._writableState;
-
-  var stream = this;
-  state.writing = 0;
-  this.writable = false;
-
-  setImmediate(function() {
-    state.finished = true;
-    stream.emit('finish');
-  });
-
-  this.end();
-};
-
-BatchObjectWriteStream.prototype.destroySoon = function destroySoon() {
-  this.end();
-};
 
 // if we're already writing something, then just put this
 // in the queue, and wait our turn.  Otherwise, call _write
@@ -235,6 +216,24 @@ BatchObjectWriteStream.prototype.end = function(chunk, cb) {
     endWritable(this, state, cb);
 };
 
+BatchObjectWriteStream.prototype.destroy = function destroy() {
+  var state = this._writableState;
+
+  var stream = this;
+  state.writing = 0;
+  this.writable = false;
+
+  setImmediate(function() {
+    state.finished = true;
+    stream.emit('finish');
+  });
+
+  this.end();
+};
+
+BatchObjectWriteStream.prototype.destroySoon = function destroySoon() {
+  this.end();
+};
 
 function needFinish(stream, state) {
   return (state.ending &&
@@ -264,3 +263,8 @@ function endWritable(stream, state, cb) {
   }
   state.ended = true;
 }
+
+
+/// no-op
+
+function noop() {}
