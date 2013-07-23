@@ -130,8 +130,10 @@ function flush(stream, state) {
 }
 
 function doWrite(stream, state, batch, callbacks) {
-  state.writing ++;
-  stream._writeBatch(batch, onWrite);
+  if (stream.writable) {
+    state.writing ++;
+    stream._writeBatch(batch, onWrite);
+  }
 
   function onWrite(err) {
     state.nextTick = false;
