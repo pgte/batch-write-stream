@@ -18,7 +18,11 @@ function WritableState(options, stream) {
   var hwm = options.highWaterMark;
   this.highWaterMark = (hwm || hwm === 0) ? hwm : 100000;
 
+  // max number of concurrent batch writes
   this.maxConcurrentBatches = options.maxConcurrentBatches || 1;
+
+  // time to wait for when scheduling a flush
+  this.flushWait = options.flushWait || 10;
 
   // cast to ints.
   this.highWaterMark = ~~this.highWaterMark;
@@ -74,7 +78,6 @@ function writeAfterEnd(stream, state, cb) {
   var er = new Error('write after end');
   // TODO: defer error events consistently everywhere, not just the cb
   stream.emit('error', er);
-  //setImmediate(function() { cb(er); });
   setImmediate(function() { cb(er); });
 }
 
@@ -104,38 +107,37 @@ BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
       state.callbacks.push(cb);
     }
 
-    if (! state.scheduled) {
-      state.scheduled = true;
-      setImmediate(this._flushFn);
-    }
+    scheduleFlushMaybe(this, state);
   }
 
   return ret;
 };
 
+function scheduleFlushMaybe(stream, state) {
+  if (! state.scheduled) {
+    state.scheduled = true;
+    setTimeout(stream._flushFn, stream.flushWait);
+  }
+}
+
 
 function flush(stream, state) {
-  //console.log('flush');
   state.scheduled = false;
   var buffer = state.buffer;
-  var callbacks = state.callbacks;
   if ((state.writing < state.maxConcurrentBatches) && buffer.length) {
+    var callbacks = state.callbacks;
     state.buffer = [];
     state.callbacks = [];
 
-    if (stream.writable) {
-      state.writing ++;
-      //if (state.writing > 1) console.log('state.writing:', state.writing);
-      //console.log('w', buffer.length);
-      stream._writeBatch(buffer, onWrite);
-    }
-  }
+    state.writing ++;
+    if (state.writing > 1) console.log('writing = ', state.writing);
+    stream._writeBatch(buffer, onWrite);
 
-  function onWrite(err) {
-    //console.log('wrote');
-    state.writing --;
-    state.length -= buffer.length;
-    onwrite(stream, err, callbacks);
+    function onWrite(err) {
+      state.writing --;
+      state.length -= buffer.length;
+      onwrite(stream, state, err, callbacks);
+    }
   }
 }
 
@@ -149,8 +151,7 @@ function onwriteError(stream, state, er, cbs) {
   stream.emit('error', er);
 }
 
-function onwrite(stream, er, cbs) {
-  var state = stream._writableState;
+function onwrite(stream, state, er, cbs) {
 
   if (er)
     onwriteError(stream, state, er, cbs);
@@ -159,7 +160,7 @@ function onwrite(stream, er, cbs) {
     var finished = needFinish(stream, state);
 
     if (!finished && state.buffer.length)
-      flush(stream, state);
+      scheduleFlushMaybe(stream, state);
 
     afterWrite(stream, state, finished, cbs);
   }

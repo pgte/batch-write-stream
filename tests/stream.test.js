@@ -48,14 +48,14 @@ test('batches correctly', function(t) {
 
   var wrote = 0;
   function writeSome() {
-    setImmediate(function() {
+    setTimeout(function() {
       for (var i = 0 ; i < chunkSize; i ++) {
         wrote ++;
         s.write(wrote, onWrote);
       }
       if (wrote < max) writeSome();
       else s.end();
-    });
+    }, 10);
   }
 
   writeSome();
@@ -102,14 +102,14 @@ test('allows parallel batches', function(t) {
 
   var wrote = 0;
   function writeSome() {
-    setImmediate(function() {
+    setTimeout(function() {
       for (var i = 0 ; i < chunkSize; i ++) {
         wrote ++;
         s.write(wrote, onWrote);
       }
       if (wrote < max) writeSome();
       else s.end();
-    });
+    }, 10);
   }
 
   writeSome();
