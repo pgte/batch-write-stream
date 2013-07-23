@@ -1,5 +1,7 @@
 # batch-write-stream
 
+> Write stream that batches all writes done in the same tick.
+
 [![Build Status](https://travis-ci.org/pgte/batch-write-stream.png?branch=master)](https://travis-ci.org/pgte/batch-write-stream)
 
 ## Install
