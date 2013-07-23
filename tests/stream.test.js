@@ -41,13 +41,13 @@ test('batches correctly', function(t) {
 
   s._writeBatch = function(batch, cb) {
     t.equal(batch.length, 100);
-    process.nextTick(cb);
+    setImmediate(cb);
   };
 
 
   var wrote = 0;
   function writeSome() {
-    process.nextTick(function() {
+    setImmediate(function() {
       for (var i = 0 ; i < chunkSize; i ++) {
         wrote ++;
         s.write(wrote, onWrote);
@@ -71,6 +71,59 @@ test('batches correctly', function(t) {
     t.end();
   }
 
+});
+
+test('allows parallel batches', function(t) {
+
+  var maxParallel = 4;
+  var max = 1000;
+  var chunkSize = 100;
+
+  var s = new BatchWriteStream({maxConcurrentBatches: 4});
+
+  var parallel = 0;
+
+  s._writeBatch = function(batch, cb) {
+
+    t.equal(batch.length, 100);
+    parallel ++;
+    if (parallel >= maxParallel) process.nextTick(cb);
+    else {
+      (function schedule() {
+        setTimeout(function() {
+          if (parallel >= maxParallel) process.nextTick(cb);
+          else schedule();
+        }, 100);
+      }());
+    }
+  };
+
+
+  var wrote = 0;
+  function writeSome() {
+    setImmediate(function() {
+      for (var i = 0 ; i < chunkSize; i ++) {
+        wrote ++;
+        s.write(wrote, onWrote);
+      }
+      if (wrote < max) writeSome();
+      else s.end();
+    });
+  }
+
+  writeSome();
+
+  var onWrotes = 0;
+  function onWrote() {
+    onWrotes ++;
+  }
+
+  s.once('finish', onFinish);
+
+  function onFinish() {
+    t.equal(onWrotes, max);
+    t.end();
+  }
 });
 
 function xtest() {}

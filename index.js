@@ -29,6 +29,9 @@ function WritableState(options, stream) {
   // when 'finish' is emitted
   this.finished = false;
 
+  // if we have a flush scheduled
+  this.scheduled = false;
+
   // not an actual buffer we keep track of, but a measurement
   // of how much we're waiting to get pushed to some underlying
   // socket or file.
@@ -64,9 +67,7 @@ function writeAfterEnd(stream, state, cb) {
   var er = new Error('write after end');
   // TODO: defer error events consistently everywhere, not just the cb
   stream.emit('error', er);
-  process.nextTick(function() {
-    cb(er);
-  });
+  setImmediate(cb, er);
 }
 
 BatchObjectWriteStream.prototype.write = function(chunk, encoding, cb) {
@@ -96,7 +97,7 @@ BatchObjectWriteStream.prototype.destroy = function destroy() {
   state.writing = 0;
   this.writable = false;
 
-  process.nextTick(function() {
+  setImmediate(function() {
     state.finished = true;
     stream.emit('finish');
   });
@@ -131,22 +132,23 @@ function buffer(stream, state, chunk, encoding, cb) {
 }
 
 function maybeFlush(stream, state) {
-  if (! state.nextTick) {
-    state.nextTick = function() {
+  if (! state.scheduled) {
+    var fn = state.scheduled = function() {
       flush(stream, state);
     };
-    process.nextTick(state.nextTick);
+    setImmediate(fn);
   }
 }
 
 function flush(stream, state) {
+  state.scheduled = false;
   var buffer = state.buffer;
   var callbacks = state.callbacks;
   if ((state.writing < state.maxConcurrentBatches) && buffer.length) {
     state.buffer = [];
     state.callbacks = [];
     doWrite(stream, state, buffer, callbacks);
-  } else state.nextTick = false;
+  }
 }
 
 function doWrite(stream, state, batch, callbacks) {
@@ -156,7 +158,6 @@ function doWrite(stream, state, batch, callbacks) {
   }
 
   function onWrite(err) {
-    state.nextTick = false;
     onwriteStateUpdate(state, batch.length);
     onwrite(stream, err, callbacks);
   }
@@ -203,7 +204,7 @@ function afterWrite(stream, state, finished, cbs) {
     finishMaybe(stream, state);
 }
 
-// Must force callback to be called on nextTick, so that we don't
+// Must force callback to be setImmediate, so that we don't
 // emit 'drain' before the write() consumer gets the 'false' return
 // value, and has a chance to attach a 'drain' listener.
 function onwriteDrain(stream, state) {
@@ -238,7 +239,7 @@ function needFinish(stream, state) {
           state.length === 0 &&
           !state.finished &&
           !state.writing &&
-          !state.nextTick);
+          !state.scheduled);
 }
 
 function finishMaybe(stream, state) {
@@ -251,11 +252,11 @@ function finishMaybe(stream, state) {
 
 function endWritable(stream, state, cb) {
   state.ending = true;
-  flush(stream, state);
+  maybeFlush(stream, state);
   finishMaybe(stream, state);
   if (cb) {
     if (state.finished)
-      process.nextTick(cb);
+      setImmediate(cb);
     else
       stream.once('finish', cb);
   }
