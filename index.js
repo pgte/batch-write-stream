@@ -49,6 +49,7 @@ function BatchObjectWriteStream(options) {
 
   // legacy.
   this.writable = true;
+  this.readable = false;
 
   Stream.call(this);
 }
@@ -221,6 +222,7 @@ function needFinish(stream, state) {
 function finishMaybe(stream, state) {
   if (needFinish(stream, state)) {
     state.finished = true;
+    stream.writable = false;
     stream.emit('finish');
   }
 }

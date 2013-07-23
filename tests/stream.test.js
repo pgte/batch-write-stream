@@ -17,6 +17,7 @@ test('can write and end', function(t) {
   s.once('finish', function() {
     t.ok(called);
     t.deepEqual(wrote, ['ABC', 'DEF']);
+    t.notOk(s.writable);
     t.end();
   });
 
