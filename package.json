@@ -1,6 +1,6 @@
 {
   "name": "batch-write-stream",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Batch Object Write Stream",
   "main": "index.js",
   "scripts": {

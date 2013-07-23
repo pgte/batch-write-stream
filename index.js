@@ -253,7 +253,7 @@ function finishMaybe(stream, state) {
 
 function endWritable(stream, state, cb) {
   state.ending = true;
-  maybeFlush(stream, state);
+  flush(stream, state);
   finishMaybe(stream, state);
   if (cb) {
     if (state.finished)
