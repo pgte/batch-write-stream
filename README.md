@@ -28,7 +28,7 @@ Or, with options:
 
 ```javascript
 var options = {
-  highWaterMark: 100,  // default
+  highWaterMark: 100000,  // default
   maxConcurrentBatches: 1 // default
 };
 
